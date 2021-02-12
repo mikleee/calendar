@@ -19,8 +19,16 @@
     calendarService
         .createEvent(
             Object.values(calendarService.storage.days)[2].id,
-            'test event 1',
+            'test event 3',
             11,
+            17,
+            [Object.values(calendarService.storage.users)[1].id]
+        )
+    calendarService
+        .createEvent(
+            Object.values(calendarService.storage.days)[3].id,
+            'test event 4',
+            16,
             17,
             [Object.values(calendarService.storage.users)[3].id]
         )
