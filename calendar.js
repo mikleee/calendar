@@ -226,7 +226,7 @@
                 }
             }
 
-            document.getElementById('createEventForm').addEventListener('submit', (event) => {
+            form.addEventListener('submit', (event) => {
                 event.preventDefault();
                 let form = event.target;
                 let elements = form.elements;
