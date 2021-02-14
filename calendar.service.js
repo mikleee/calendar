@@ -18,6 +18,13 @@ class CalendarService {
         });
     }
 
+    getDays() {
+        return Object.values(this.storage.days);
+    }
+
+    getUsers() {
+        return Object.values(this.storage.users);
+    }
 
     createEvent(dayId, name, start, end, userIds) {
         const id = this.sequence.getNext();
@@ -27,14 +34,31 @@ class CalendarService {
         return event;
     }
 
-    changeEventDayTime(dayId, eventId) {
-
+    changeEventDayTime(eventId, dayId, start) {
+        let event = this.getEventById(eventId);
+        // remove from initial day
+        Object.values(this.storage.days).forEach(d => d.events = d.events.filter(e => e.id !== eventId));
+        // add to new day event
+        event.time.end = start + (event.time.end - event.time.start);
+        event.time.start = start;
+        this.storage.days[dayId].events.push(event);
     }
 
     deleteEvent(eventId) {
         Object.values(this.storage.days).forEach(day => {
             day.events = day.events.filter(event => event.id !== eventId);
         });
+    }
+
+    getEventById(eventId) {
+        for (const day of Object.values(this.storage.days)) {
+            for (const event of day.events) {
+                if (eventId === event.id) {
+                    return event;
+                }
+            }
+        }
+        return null;
     }
 
     isEventTimeValid(dayId, start, end) {
