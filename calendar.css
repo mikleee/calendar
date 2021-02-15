@@ -17,32 +17,61 @@ input {
     margin: auto;
 }
 
-.days {
+.time-grid {
     display: flex;
     justify-content: space-between;
     position: relative
 }
 
-.days .day {
+.time-column {
     flex-grow: 1;
 }
 
-.day .day-time-cell {
+.time-cell {
     border: 1px solid #d3d3d391;
     height: 30px;
     width: 100%;
+    box-sizing: border-box;
+}
+
+.time-column.axis {
+    flex-grow: 0;
+    width: 40px;
+}
+
+.axis .time-cell {
+    border: none;
+    position: relative;
+}
+
+.axis .time-cell-content {
+    position: absolute;
+    transform: translate(-50%,-50%);
+    top: 0;
+    left: 50%;
+}
+
+
+.time-cell.time-column-header {
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.time-cell.time-column-header {
+    border: none;
 }
 
 .event {
-    width: 100%;
-    height: 30px;
     position: absolute;
     color: rgb(117, 137, 255);
     border: 1px solid rgb(117, 137, 255);
     background: rgba(117, 137, 255, 0.3);
+    box-sizing: border-box;
 }
 
-.event .delete-event {
+.event .event-delete {
     position: absolute;
     top: 0;
     right: 0;

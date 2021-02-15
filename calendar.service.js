@@ -61,7 +61,7 @@ class CalendarService {
         return null;
     }
 
-    isEventTimeValid(dayId, start, end) {
+    isEventTimeValid(dayId, start, end, eventId) {
         let day = this.storage.days[dayId];
         if (start < day.minHour) {
             return false;
@@ -73,7 +73,9 @@ class CalendarService {
             return false;
         }
 
-        let events = day.events.sort((e1, e2) => e2.time.start - e1.time.start);
+        let events = day.events
+            .filter(e => e.id !== eventId)
+            .sort((e1, e2) => e2.time.start - e1.time.start);
         for (let event of events) {
             // inside
             if (start >= event.time.start && start < event.time.end ||

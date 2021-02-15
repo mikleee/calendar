@@ -51,7 +51,7 @@
                     </div>
                 </div>
                 <div>
-                    <div id="days" class="days"></div>
+                    <div id="time-grid" class="time-grid"></div>
                 </div>
                 <div class="input-row">
                     <div></div>
@@ -59,8 +59,6 @@
                 </div>
             `;
 
-            const daysContainer = document.getElementById('days');
-            renderDays(daysContainer);
 
             const usersSelect = document.getElementById('users');
             for (const user of Object.values(calendarService.storage.users)) {
@@ -70,8 +68,13 @@
             }
             usersSelect.addEventListener('change', () => {
                 selectedUserId = Number(usersSelect.value);
-                renderDays(daysContainer);
+                initDayEvents(timeGridContainer);
             })
+
+            const timeGridContainer = document.getElementById('time-grid');
+            renderTimeGrid(timeGridContainer);
+            initDayEvents(timeGridContainer);
+
 
             document.getElementById('renderCreateEventScreen').addEventListener('click', () => {
                 eventFormService.renderEventFrom(calendarContainer)
@@ -84,75 +87,109 @@
 
         }
 
-        function renderDays(daysContainer) {
-            daysContainer.innerHTML = '';
-            for (const day of Object.values(calendarService.storage.days)) {
-                let dayContainer = document.createElement('div');
-                dayContainer.setAttribute('id', `day-${day.id}`);
-                dayContainer.classList.add('day');
-                dayContainer.innerHTML = `
-                    <div>
-                        <div>${day.name}</div>
-                    </div>
-                    <div>
-                        <div id="day-times-${day.id}" data-day-times="${day.id}" style="position: relative"></div>
-                    </div>
-                `;
-                daysContainer.appendChild(dayContainer);
+        function renderTimeGrid(timeGridContainer) {
+            timeGridContainer.innerHTML = '';
 
-                let dayEventsContainer = document.getElementById(`day-times-${day.id}`);
-                renderDayTimeGrid(day, dayEventsContainer);
-                renderDayEvents(day, dayEventsContainer);
+            let days = calendarService.getDays();
+
+
+            // render axis
+            {
+                let id = 'axis';
+                let minHour = Math.min(...days.map(d => d.minHour));
+                let maxHour = Math.min(...days.map(d => d.maxHour));
+
+                timeGridContainer.innerHTML += getTimeColumnHtml(id, '', 'axis');
+                let timeColumnContainer = timeGridContainer.querySelector(`#time-column-grid-${id}`);
+                for (let i = minHour; i <= maxHour; i++) {
+                    timeColumnContainer.innerHTML += getTimeCellHtml(id, i, i);
+                }
             }
 
-            enableDayEventsDragAndDrop(daysContainer);
-        }
+            // render days
+            for (const day of days) {
+                let id = day.id;
+                let minHour = day.minHour;
+                let maxHour = day.maxHour;
 
-        function renderDayTimeGrid(day, dayEventsContainer) {
-            const minHour = day.minHour;
-            const maxHour = day.maxHour;
-
-            for (let i = minHour; i <= maxHour; i++) {
-                let eventContainer = document.createElement('div');
-                eventContainer.setAttribute('id', `data-day-time-${day.id}-${i}`);
-                eventContainer.classList.add('day-time-cell');
-                eventContainer.innerHTML = `
-                        <div></div>
-                `;
-                dayEventsContainer.appendChild(eventContainer);
+                timeGridContainer.innerHTML += getTimeColumnHtml(id, day.name);
+                let timeColumnContainer = timeGridContainer.querySelector(`#time-column-grid-${id}`);
+                for (let i = minHour; i < maxHour; i++) {
+                    timeColumnContainer.innerHTML += getTimeCellHtml(id, i, '');
+                }
             }
-        }
 
-        function renderDayEvents(day, dayEventsContainer) {
-            dayEventsContainer.querySelectorAll('[data-event]').forEach(e => e.remove());
-
-            const minHour = day.minHour;
-            const maxHour = day.maxHour;
-
-            let hourDistance = dayEventsContainer.offsetHeight / (maxHour - minHour + 1);
-
-            for (let event of day.events.filter(e => e.users.map(u => u.id).includes(selectedUserId))) {
-                let eventContainer = document.createElement('div');
-                eventContainer.setAttribute('id', `day-time-${day.id}-event-${event.id}`);
-                eventContainer.setAttribute('data-event', `${event.id}`);
-                eventContainer.classList.add('event');
-                eventContainer.style.top = (event.time.start - minHour) * hourDistance + 'px';
-                eventContainer.style.height = (event.time.end - event.time.start) * hourDistance + 'px';
-                eventContainer.innerHTML = `
-                    <div>${event.name}</div>
-                    <div data-delete-event="${event.id}" class="delete-event">&times;</div>
+            function getTimeColumnHtml(id, title, cssClass) {
+                return `
+                        <div id="time-column-${id}" class="time-column ${cssClass || ''}">
+                            <div class="time-cell time-column-header"><div class="time-column-title">${title}</div></div>
+                            <div id="time-column-grid-${id}" data-time-column-grid="${id}" style="position: relative"></div>
+                        </div>
                 `;
-                dayEventsContainer.appendChild(eventContainer);
+            }
 
-                eventContainer.querySelector('[data-delete-event]').addEventListener('click', (e) => {
-                    calendarService.deleteEvent(event.id);
-                    eventContainer.remove();
-                });
+            function getTimeCellHtml(id, time, text) {
+                return `<div id="time-cell-${id}-${time}" data-time-cell="${id}-${time}" class="time-cell"><div class="time-cell-content">${text}</div></div>`
             }
         }
 
-        function enableDayEventsDragAndDrop(daysContainer) {
-            daysContainer.querySelectorAll('[data-event]').forEach(elem => {
+        function initDayEvents(timeGridContainer) {
+            renderDayEvents(timeGridContainer);
+            enableDayEventsDragAndDrop(timeGridContainer);
+        }
+
+        function renderDayEvents(timeGridContainer) {
+            timeGridContainer.querySelectorAll('[data-event]').forEach(e => e.remove());
+
+            let days = calendarService.getDays();
+            let daysGrid = getDaysGrid(timeGridContainer);
+
+            for (const day of days) {
+                const dayGrid = daysGrid[day.id];
+                const minHour = day.minHour;
+                const maxHour = day.maxHour;
+                const hourDistance = timeGridContainer.querySelector(`#time-column-grid-${day.id}`).offsetHeight / (maxHour - minHour);
+
+                let events = day.events.filter(e => e.users.map(u => u.id).includes(selectedUserId));
+                for (let event of events) {
+                    let eventContainer = document.createElement(`div`);
+                    timeGridContainer.appendChild(eventContainer);
+
+                    eventContainer.setAttribute('id', `event-${event.id}`);
+                    eventContainer.setAttribute('data-event', `${event.id}`);
+                    eventContainer.setAttribute('data-event-day', `${day.id}`);
+                    eventContainer.setAttribute('data-event-start-time', `${event.time.start}`);
+                    eventContainer.setAttribute('data-event-end-time', `${event.time.end}`);
+                    eventContainer.classList.add('event');
+
+                    eventContainer.innerHTML = `
+                        <div>
+                            <div class="event-title">${event.name}</div>
+                            <div class="event-content"></div>
+                            <div data-event-delete="${event.id}" class="event-delete">&times;</div>
+                        </div>
+                    `;
+
+                    eventContainer.style.position = 'absolute';
+                    eventContainer.style.top = dayGrid.top + (event.time.start - minHour) * hourDistance + 'px';
+                    eventContainer.style.height = (event.time.end - event.time.start) * hourDistance + 'px';
+                    eventContainer.style.left = dayGrid.left + 'px';
+                    eventContainer.style.width = dayGrid.width + 'px';
+
+                    eventContainer.querySelector('[data-event-delete]').addEventListener('click', (e) => {
+                        calendarService.deleteEvent(event.id);
+                        eventContainer.remove();
+                    });
+
+                }
+            }
+
+
+        }
+
+
+        function enableDayEventsDragAndDrop(timeGridContainer) {
+            timeGridContainer.querySelectorAll('[data-event]').forEach(elem => {
                 let calendarEvent = calendarService.getEventById(Number(elem.getAttribute('data-event')))
 
                 let initialStyles = {
@@ -166,7 +203,7 @@
                     width: null
                 };
 
-                let initialPosition = getPosition(elem);
+                let initialPosition = getPosition(elem, timeGridContainer);
                 let initialCursorPosition;
 
                 // elem.ondragstart = function () {
@@ -175,11 +212,11 @@
 
 
                 elem.onmousedown = function (event) {
-                    if (event.target.hasAttribute('data-delete-event')) {
+                    if (event.target.hasAttribute('data-event-delete')) {
                         return;
                     }
 
-                    let daysGrid = getDaysGrid(event);
+                    let daysGrid = getDaysGrid(timeGridContainer);
 
                     modifiedStyles.position = 'absolute';
                     modifiedStyles.zIndex = '1000';
@@ -193,11 +230,6 @@
                         initialCursorPosition = {x: event.pageX, y: event.pageY};
                     }
 
-                    document.body.appendChild(elem);
-
-                    moveAt(event.pageX, event.pageY);
-
-
                     function moveAt(pageX, pageY) {
                         let xdiff = pageX - initialCursorPosition.x;
                         let ydiff = pageY - initialCursorPosition.y;
@@ -209,16 +241,19 @@
                     function onMouseMove(event) {
                         moveAt(event.pageX, event.pageY);
 
-                        let position = getPosition(event.target);
+                        let position = getPosition(elem, timeGridContainer);
                         let targetDayTime = defineTargetDayTime(position.left, position.top, daysGrid);
+                        elem.classList.remove('event-position-valid');
+                        elem.classList.remove('event-position-invalid');
+
                         if (targetDayTime) {
-                            elem.classList.remove('event-position-valid')
-                            elem.classList.remove('event-position-invalid')
-                            if (calendarService.isEventTimeValid(targetDayTime.day.id, targetDayTime.start, targetDayTime.start + (calendarEvent.time.end - calendarEvent.time.start))) {
-                                elem.classList.add('event-position-valid')
+                            if (calendarService.isEventTimeValid(targetDayTime.day.id, targetDayTime.start, targetDayTime.start + (calendarEvent.time.end - calendarEvent.time.start), calendarEvent.id)) {
+                                elem.classList.add('event-position-valid');
                             } else {
-                                elem.classList.add('event-position-invalid')
+                                elem.classList.add('event-position-invalid');
                             }
+                        } else {
+                            elem.classList.add('event-position-invalid');
                         }
                     }
 
@@ -226,11 +261,10 @@
 
 
                     elem.onmouseup = function (event) {
-                       debugger;
-                        let position = getPosition(event.target);
+                        let position = getPosition(elem, timeGridContainer);
                         let targetDayTime = defineTargetDayTime(position.left, position.top, daysGrid);
                         if (targetDayTime) {
-                            if (calendarService.isEventTimeValid(targetDayTime.day.id, targetDayTime.start, targetDayTime.start + (calendarEvent.time.end - calendarEvent.time.start))) {
+                            if (calendarService.isEventTimeValid(targetDayTime.day.id, targetDayTime.start, targetDayTime.start + (calendarEvent.time.end - calendarEvent.time.start), calendarEvent.id)) {
                                 calendarService.changeEventDayTime(calendarEvent.id, targetDayTime.day.id, targetDayTime.start);
                             }
                         }
@@ -241,39 +275,17 @@
                             elem.style[k] = v;
                         }
 
-
-                        for (const day of Object.values(calendarService.storage.days)) {
-                            let dayEventsContainer = document.getElementById(`day-times-${day.id}`);
-                            renderDayEvents(day, dayEventsContainer);
-                        }
-                        enableDayEventsDragAndDrop(daysContainer);
+                        initDayEvents(timeGridContainer);
                         elem.remove();
 
                     };
 
-                    function getDaysGrid() {
-                        return [...daysContainer.querySelectorAll('[data-day-times]')].reduce((grid, e) => {
-                            let position = getPosition(e);
-
-                            grid.push({
-                                dayId: Number(e.getAttribute('data-day-times')),
-                                top: position.top,
-                                bottom: position.top + e.offsetHeight,
-                                left: position.left,
-                                right: position.left + e.offsetWidth,
-                                width: e.offsetWidth,
-                                height: e.offsetHeight
-                            })
-                            return grid;
-                        }, []);
-                    }
-
                     function defineTargetDayTime(x, y, daysGrid) {
-                        for (const cell of daysGrid) {
+                        for (const cell of Object.values(daysGrid)) {
                             if (x >= cell.left && x <= cell.right && y >= cell.top && y <= cell.bottom) {
 
                                 let day = calendarService.storage.days[cell.dayId];
-                                let hourInPx = cell.height / (day.maxHour - day.minHour + 1);
+                                let hourInPx = cell.height / (day.maxHour - day.minHour);
                                 let offset = y - cell.top;
                                 let hours = day.minHour + offset / hourInPx - 1;
 
@@ -287,16 +299,39 @@
                     }
                 };
 
-                function getPosition(elem) {
-                    let result = {top: 0, left: 0};
-                    while (elem) {
-                        result.top += elem.offsetTop;
-                        result.left += elem.offsetLeft;
-                        elem = elem.offsetParent;
-                    }
-                    return result;
-                }
+
             });
+        }
+
+        function getPosition(elem, parent) {
+            let result = {top: 0, left: 0};
+            while (elem && elem !== parent) {
+                result.top += elem.offsetTop;
+                result.left += elem.offsetLeft;
+                elem = elem.offsetParent;
+            }
+            return result;
+        }
+
+        function getDaysGrid(timeGridContainer) {
+            return [...timeGridContainer.querySelectorAll('[data-time-column-grid]')].reduce((grid, e) => {
+                let position = getPosition(e, timeGridContainer);
+                let id = e.getAttribute('data-time-column-grid');
+                if (id !== 'axis') {
+                    id = Number(id);
+                    grid[id] = {
+                        dayId: id,
+                        element: e,
+                        top: position.top,
+                        bottom: position.top + e.offsetHeight,
+                        left: position.left,
+                        right: position.left + e.offsetWidth,
+                        width: e.offsetWidth,
+                        height: e.offsetHeight
+                    }
+                }
+                return grid;
+            }, {});
         }
 
     });
